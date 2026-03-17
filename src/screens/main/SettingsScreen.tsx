@@ -169,7 +169,7 @@ export function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={styles.version}>BotsApp v1.0.0</Text>
+        <Text style={styles.version}>Alter v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );

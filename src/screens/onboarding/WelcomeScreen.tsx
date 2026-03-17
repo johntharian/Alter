@@ -119,7 +119,7 @@ export function WelcomeScreen({ navigation }: Props) {
             <View style={styles.logoCircle}>
               <Text style={styles.logoEmoji}>🤖</Text>
             </View>
-            <Text style={styles.brand}>BotsApp</Text>
+            <Text style={styles.brand}>Alter</Text>
             <Text style={styles.tagline}>Your AI. Your number. Your network.</Text>
           </Animated.View>
 

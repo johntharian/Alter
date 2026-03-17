@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "botsapp-app",
-    "slug": "botsapp-app",
+    "name": "alter-app",
+    "slug": "alter-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

@@ -18,7 +18,6 @@ import { syncContacts, getContacts, getThreads } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { useThreadStore } from '../../store/threadStore';
 import { Avatar } from '../../components/Avatar';
-import { EmptyState } from '../../components/EmptyState';
 
 type Props = NativeStackScreenProps<ChatsStackParamList, 'Contacts'>;
 
@@ -79,12 +78,11 @@ export function ContactsScreen({ navigation }: Props) {
 
       const { found } = await syncContacts(phoneNumbers);
       setContacts(found);
-      Alert.alert(
-        'Synced!',
-        found.length > 0
-          ? `Found ${found.length} contact${found.length === 1 ? '' : 's'} on BotsApp`
-          : 'None of your contacts are on BotsApp yet'
-      );
+      if (found.length > 0) {
+        navigation.goBack();
+      } else {
+        Alert.alert('No Matches', 'None of your contacts are on Alter yet');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sync failed';
       Alert.alert('Error', message);
@@ -186,9 +184,9 @@ export function ContactsScreen({ navigation }: Props) {
       ) : contacts.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.syncCard}>
-            <Text style={styles.syncCardTitle}>Find people on BotsApp</Text>
+            <Text style={styles.syncCardTitle}>Find people on Alter</Text>
             <Text style={styles.syncCardDesc}>
-              Sync your contacts to discover friends already using BotsApp
+              Sync your contacts to discover friends already using Alter
             </Text>
             <TouchableOpacity
               style={[styles.syncCardButton, syncing && styles.syncCardButtonDisabled]}
