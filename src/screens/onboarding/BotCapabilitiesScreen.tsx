@@ -385,7 +385,6 @@ const styles = StyleSheet.create({
   providerIcon: {
     fontSize: 20,
     color: Colors.accent,
-    marginBottom: 4,
   },
   providerLabel: {
     fontSize: 14,
@@ -400,7 +399,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: Colors.accent,
-    marginTop: 4,
   },
   // Dedicated single-line input style for LLM section inputs.
   // Does NOT inherit lineHeight or minHeight:120 from instructionsInput,
