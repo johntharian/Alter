@@ -164,6 +164,56 @@ export function BotCapabilitiesScreen() {
             ))}
           </View>
 
+          {/* LLM Provider */}
+          <View style={styles.llmContainer}>
+            <Text style={styles.sectionLabel}>Choose your AI</Text>
+            <View style={styles.providerGrid}>
+              {PROVIDERS.map((p) => {
+                const isSelected = selectedLLM === p.id;
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.providerCard, isSelected && styles.providerCardSelected]}
+                    onPress={() => setSelectedLLM(p.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.providerIcon}>{p.icon}</Text>
+                    <Text style={styles.providerLabel}>{p.label}</Text>
+                    <Text style={styles.providerSub}>{p.sub}</Text>
+                    {isSelected && (
+                      <Text style={styles.providerCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Custom model ID — only when "custom" selected */}
+            {selectedLLM === 'custom' && (
+              <TextInput
+                style={styles.llmInput}
+                placeholder="e.g. mistral-large-latest"
+                placeholderTextColor={Colors.textMuted}
+                value={customModelId}
+                onChangeText={setCustomModelId}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            )}
+
+            {/* API key — always visible */}
+            <TextInput
+              style={styles.llmInput}
+              placeholder="API key (optional)"
+              placeholderTextColor={Colors.textMuted}
+              value={apiKey}
+              onChangeText={setApiKey}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
           <View style={styles.instructionsContainer}>
             <Text style={styles.instructionsLabel}>Special instructions (optional)</Text>
             <TextInput
@@ -300,5 +350,70 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.bg,
     letterSpacing: 0.3,
+  },
+  llmContainer: {
+    marginBottom: 24,
+  },
+  // Intentionally separate from `instructionsLabel` — marginBottom 12 vs 10
+  // to give the provider grid a touch more breathing room above it.
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  providerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,  // requires React Native 0.71+ / Expo SDK 48+
+  },
+  providerCard: {
+    width: '47%',
+    backgroundColor: Colors.bgCard,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    padding: 14,
+    gap: 4,   // requires React Native 0.71+ / Expo SDK 48+
+  },
+  providerCardSelected: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentDim,
+  },
+  providerIcon: {
+    fontSize: 20,
+    color: Colors.accent,
+    marginBottom: 4,
+  },
+  providerLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  providerSub: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  providerCheck: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.accent,
+    marginTop: 4,
+  },
+  // Dedicated single-line input style for LLM section inputs.
+  // Does NOT inherit lineHeight or minHeight:120 from instructionsInput,
+  // which avoids an Android vertical text-centering bug on single-line fields.
+  llmInput: {
+    backgroundColor: Colors.bgCard,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    color: Colors.text,
+    minHeight: 48,
+    marginTop: 12,
   },
 });
