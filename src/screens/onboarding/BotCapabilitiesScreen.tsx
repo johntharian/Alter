@@ -100,22 +100,39 @@ export function BotCapabilitiesScreen() {
   const handleDone = async () => {
     if (!user) return;
     setLoading(true);
+
+    const provider = selectedLLM === 'custom' ? customModelId.trim() : selectedLLM;
+
+    // Required saves — failure blocks navigation
     try {
-      if (instructions.trim()) {
-        await setBotInstructions(user.id, instructions.trim());
-      }
+      const saves: Promise<void>[] = [
+        setLLMPreference(user.id, provider),
+        ...(instructions.trim() ? [setBotInstructions(user.id, instructions.trim())] : []),
+      ];
+      await Promise.all(saves);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save';
       Alert.alert('Error', message);
       setLoading(false);
       return;
     }
+
+    // Optional save — failure shows warning but does not block
+    if (apiKey.trim()) {
+      try {
+        await setLLMApiKey(user.id, provider, apiKey.trim());
+      } catch {
+        Alert.alert(
+          'Warning',
+          'Bot activated, but your API key could not be saved. You can add it later in Settings.'
+        );
+      }
+    }
+
     setLoading(false);
     if (route.params?.onboarding) {
-      // Onboarding complete — flip isAuthenticated so RootNavigator shows MainTabs
       useAuthStore.getState().completeOnboarding();
     } else {
-      // In-app context (from Settings): just go back
       navigation.goBack();
     }
   };
@@ -231,7 +248,7 @@ export function BotCapabilitiesScreen() {
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleDone}
-            disabled={loading}
+            disabled={loading || (selectedLLM === 'custom' && !customModelId.trim())}
             activeOpacity={0.85}
           >
             {loading ? (
