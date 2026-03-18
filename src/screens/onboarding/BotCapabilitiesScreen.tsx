@@ -230,6 +230,8 @@ export function BotCapabilitiesScreen() {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
+              textContentType="password"
+              autoComplete="off"
             />
           </View>
 
