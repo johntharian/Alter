@@ -137,6 +137,8 @@ export function BotCapabilitiesScreen() {
     }
   };
 
+  const isDoneDisabled = loading || (selectedLLM === 'custom' && !customModelId.trim());
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -246,9 +248,9 @@ export function BotCapabilitiesScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.button, isDoneDisabled && styles.buttonDisabled]}
             onPress={handleDone}
-            disabled={loading || (selectedLLM === 'custom' && !customModelId.trim())}
+            disabled={isDoneDisabled}
             activeOpacity={0.85}
           >
             {loading ? (
