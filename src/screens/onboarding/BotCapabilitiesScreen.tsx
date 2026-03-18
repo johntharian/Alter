@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { AuthStackParamList } from '../../types';
 import { Colors } from '../../constants/colors';
-import { setBotInstructions } from '../../services/api';
+import { setBotInstructions, setLLMPreference, setLLMApiKey } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 
 // Works in both onboarding and in-app contexts
@@ -64,6 +64,20 @@ const INITIAL_CAPABILITIES: Capability[] = [
   },
 ];
 
+interface LLMProvider {
+  id: string;
+  label: string;
+  sub: string;
+  icon: string;
+}
+
+const PROVIDERS: LLMProvider[] = [
+  { id: 'gemini', label: 'Gemini',  sub: 'Google',        icon: '✦' },
+  { id: 'claude', label: 'Claude',  sub: 'Anthropic',     icon: '◆' },
+  { id: 'gpt4o',  label: 'GPT-4o', sub: 'OpenAI',        icon: '⬡' },
+  { id: 'custom', label: 'Custom',  sub: 'Bring your own', icon: '⌥' },
+];
+
 export function BotCapabilitiesScreen() {
   const navigation = useNavigation<AnyNavigation>();
   const route = useRoute<RouteProp<AuthStackParamList, 'BotCapabilities'>>();
@@ -71,6 +85,9 @@ export function BotCapabilitiesScreen() {
   const [capabilities, setCapabilities] = useState<Capability[]>(INITIAL_CAPABILITIES);
   const [instructions, setInstructions] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedLLM, setSelectedLLM] = useState<string>('gemini');
+  const [customModelId, setCustomModelId] = useState('');
+  const [apiKey, setApiKey] = useState('');
 
   const toggleCapability = (key: string) => {
     setCapabilities((prev) =>
