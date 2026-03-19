@@ -14,6 +14,10 @@ export interface Thread {
   id: string;
   participant_a: string;
   participant_b: string;
+  participant_a_name?: string;
+  participant_a_phone?: string;
+  participant_b_name?: string;
+  participant_b_phone?: string;
   human_takeover_by?: string;
   last_message?: string;
   created_at: string;

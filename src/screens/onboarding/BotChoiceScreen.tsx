@@ -45,6 +45,18 @@ export function BotChoiceScreen({ navigation }: Props) {
           setLoading(false);
           return;
         }
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+            Alert.alert('Invalid URL', 'URL must start with http:// or https://');
+            setLoading(false);
+            return;
+          }
+        } catch {
+          Alert.alert('Invalid URL', 'Please enter a valid webhook URL (e.g. https://your-bot.com/webhook)');
+          setLoading(false);
+          return;
+        }
         await updateMyBot(url);
         // Own bot skips capabilities screen — onboarding complete, flip to MainTabs
         useAuthStore.getState().completeOnboarding();

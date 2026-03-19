@@ -42,28 +42,29 @@ export function ChatViewScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [togglingTakeover, setTogglingTakeover] = useState(false);
+  const [activeThreadId, setActiveThreadId] = useState(threadId);
 
   const flatListRef = useRef<FlatList>(null);
-  const thread = threads.find((t) => t.id === threadId);
-  const isTakeover = !!thread?.human_takeover_by;
-  const threadMessages = messages[threadId] ?? [];
+  const thread = threads.find((t) => t.id === activeThreadId);
+  const isTakeover = thread?.human_takeover_by === currentUser?.id;
+  const threadMessages = messages[activeThreadId] ?? [];
 
   const loadMessages = useCallback(async () => {
-    if (!threadId) {
+    if (!activeThreadId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const msgs = await getThreadMessages(threadId);
-      setMessages(threadId, msgs);
+      const msgs = await getThreadMessages(activeThreadId);
+      setMessages(activeThreadId, msgs);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load messages';
       Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
-  }, [threadId, setMessages]);
+  }, [activeThreadId, setMessages]);
 
   useEffect(() => {
     loadMessages();
@@ -74,26 +75,30 @@ export function ChatViewScreen({ navigation, route }: Props) {
     const handler = (event: FeedEvent) => {
       if (event.type === 'new_message') {
         const msg = event.data as Message;
-        if (msg.thread_id === threadId) {
-          addMessage(threadId, msg);
+        // If we didn't have a thread yet, capture the new thread_id
+        if (!activeThreadId && msg.thread_id) {
+          setActiveThreadId(msg.thread_id);
+        }
+        if (msg.thread_id === activeThreadId || (!activeThreadId && msg.thread_id && contactPhone)) {
+          addMessage(msg.thread_id, msg);
           setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         }
       } else if (event.type === 'status_update') {
         const d = event.data as { message_id?: string; status?: string; thread_id?: string };
-        if (d.message_id && d.status && d.thread_id === threadId) {
-          updateMessageStatus(d.message_id, threadId, d.status);
+        if (d.message_id && d.status && d.thread_id === activeThreadId) {
+          updateMessageStatus(d.message_id, activeThreadId, d.status);
         }
       } else if (event.type === 'takeover_started') {
         const d = event.data as { thread_id?: string; by_user_id?: string };
-        if (d.thread_id === threadId) updateTakeover(d.thread_id, d.by_user_id);
+        if (d.thread_id === activeThreadId) updateTakeover(d.thread_id, d.by_user_id);
       } else if (event.type === 'takeover_ended') {
         const d = event.data as { thread_id?: string };
-        if (d.thread_id === threadId) updateTakeover(d.thread_id, undefined);
+        if (d.thread_id === activeThreadId) updateTakeover(d.thread_id, undefined);
       }
     };
     wsManager.subscribe(handler);
     return () => wsManager.unsubscribe(handler);
-  }, [threadId, addMessage, updateMessageStatus, updateTakeover]);
+  }, [activeThreadId, contactPhone, addMessage, updateMessageStatus, updateTakeover]);
 
   const handleSend = async () => {
     const text = inputText.trim();
@@ -118,14 +123,15 @@ export function ChatViewScreen({ navigation, route }: Props) {
 
 
   const handleTakeoverToggle = async () => {
+    if (!activeThreadId) return;
     setTogglingTakeover(true);
     try {
       if (isTakeover) {
-        await endTakeover(threadId);
-        updateTakeover(threadId, undefined);
+        await endTakeover(activeThreadId);
+        updateTakeover(activeThreadId, undefined);
       } else {
-        await startTakeover(threadId);
-        updateTakeover(threadId, currentUser?.id);
+        await startTakeover(activeThreadId);
+        updateTakeover(activeThreadId, currentUser?.id);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to toggle takeover';
@@ -153,9 +159,13 @@ export function ChatViewScreen({ navigation, route }: Props) {
           </Text>
         </View>
         <TouchableOpacity
-          style={[styles.takeoverButton, isTakeover && styles.takeoverButtonActive]}
+          style={[
+            styles.takeoverButton,
+            isTakeover && styles.takeoverButtonActive,
+            !activeThreadId && styles.takeoverButtonDisabled,
+          ]}
           onPress={handleTakeoverToggle}
-          disabled={togglingTakeover}
+          disabled={togglingTakeover || !activeThreadId}
         >
           {togglingTakeover ? (
             <ActivityIndicator size="small" color={isTakeover ? Colors.orange : Colors.textMuted} />
@@ -296,6 +306,9 @@ const styles = StyleSheet.create({
   takeoverButtonActive: {
     backgroundColor: Colors.orangeDim,
     borderColor: Colors.orange,
+  },
+  takeoverButtonDisabled: {
+    opacity: 0.35,
   },
   loadingContainer: {
     flex: 1,

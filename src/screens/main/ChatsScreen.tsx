@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
@@ -21,6 +22,7 @@ import { useThreadStore } from '../../store/threadStore';
 import { useAuthStore } from '../../store/authStore';
 import { ThreadRow } from '../../components/ThreadRow';
 import { EmptyState } from '../../components/EmptyState';
+import { Avatar } from '../../components/Avatar';
 
 type NavProp = NativeStackNavigationProp<ChatsStackParamList, 'ChatsScreen'>;
 
@@ -30,6 +32,7 @@ export function ChatsScreen() {
   const currentUser = useAuthStore((s) => s.user);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [contacts, setContacts] = useState<ContactInfo[]>([]);
 
   const contactMap = useRef<Map<string, ContactInfo>>(new Map());
 
@@ -48,6 +51,7 @@ export function ChatsScreen() {
       ]);
       setThreads(threadList);
       buildContactMap(contactList);
+      setContacts(contactList);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load';
       Alert.alert('Error', message);
@@ -97,9 +101,10 @@ export function ChatsScreen() {
     const contact = getContactForThread(thread);
     if (contact) return contact.display_name || contact.phone_number;
     if (!currentUser) return '';
-    return thread.participant_a === currentUser.id
-      ? thread.participant_b
-      : thread.participant_a;
+    const isA = thread.participant_a === currentUser.id;
+    const name = isA ? thread.participant_b_name : thread.participant_a_name;
+    const phone = isA ? thread.participant_b_phone : thread.participant_a_phone;
+    return name || phone || (isA ? thread.participant_b : thread.participant_a);
   };
 
   const filteredThreads = search.trim()
@@ -109,20 +114,54 @@ export function ChatsScreen() {
       })
     : threads;
 
+  const navigateToContact = async (contact: ContactInfo) => {
+    const existing = threads.find(
+      (t) =>
+        (t.participant_a === currentUser?.id && t.participant_b === contact.user_id) ||
+        (t.participant_b === currentUser?.id && t.participant_a === contact.user_id)
+    );
+    if (existing) {
+      navigation.navigate('ChatView', {
+        threadId: existing.id,
+        contactName: contact.display_name || contact.phone_number,
+        contactPhone: contact.phone_number,
+      });
+      return;
+    }
+    try {
+      const fresh = await getThreads();
+      setThreads(fresh);
+      const found = fresh.find(
+        (t) =>
+          (t.participant_a === currentUser?.id && t.participant_b === contact.user_id) ||
+          (t.participant_b === currentUser?.id && t.participant_a === contact.user_id)
+      );
+      navigation.navigate('ChatView', {
+        threadId: found?.id ?? '',
+        contactName: contact.display_name || contact.phone_number,
+        contactPhone: contact.phone_number,
+      });
+    } catch {
+      navigation.navigate('ChatView', {
+        threadId: '',
+        contactName: contact.display_name || contact.phone_number,
+        contactPhone: contact.phone_number,
+      });
+    }
+  };
+
   const navigateToChat = (thread: Thread) => {
     const contact = getContactForThread(thread);
     const name = getThreadName(thread);
+    const isA = currentUser ? thread.participant_a === currentUser.id : true;
     const phone =
       contact?.phone_number ??
-      (currentUser
-        ? thread.participant_a === currentUser.id
-          ? thread.participant_b
-          : thread.participant_a
-        : '');
+      (isA ? thread.participant_b_phone : thread.participant_a_phone) ??
+      (isA ? thread.participant_b : thread.participant_a);
     navigation.navigate('ChatView', {
       threadId: thread.id,
       contactName: name,
-      contactPhone: phone,
+      contactPhone: phone ?? '',
     });
   };
 
@@ -155,6 +194,31 @@ export function ChatsScreen() {
           )}
         </View>
       </View>
+
+      {contacts.length > 0 && !loading && (
+        <View style={styles.contactTilesWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.contactTiles}
+          >
+            {contacts.map((c) => (
+              <TouchableOpacity
+                key={c.user_id}
+                style={styles.contactTile}
+                onPress={() => navigateToContact(c)}
+                activeOpacity={0.7}
+              >
+                <Avatar name={c.display_name || c.phone_number} size={52} />
+                <Text style={styles.contactTileName} numberOfLines={1}>
+                  {(c.display_name || c.phone_number).split(' ')[0]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <View style={styles.tilesDivider} />
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -246,6 +310,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: Colors.text,
+  },
+  contactTilesWrapper: {
+    paddingTop: 4,
+  },
+  contactTiles: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 20,
+  },
+  contactTile: {
+    alignItems: 'center',
+    gap: 6,
+    width: 60,
+  },
+  contactTileName: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+  tilesDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 16,
   },
   loadingContainer: {
     flex: 1,

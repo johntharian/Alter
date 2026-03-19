@@ -16,8 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
-import { Message, FeedEvent } from '../../types';
-import { getThreads, getThreadMessages, sendMessage } from '../../services/api';
+import { Message, FeedEvent, ContactInfo } from '../../types';
+import { getThreads, getThreadMessages, sendMessage, getContacts } from '../../services/api';
 import { wsManager } from '../../services/ws';
 import { useAuthStore } from '../../store/authStore';
 import { useMessageStore } from '../../store/messageStore';
@@ -25,6 +25,7 @@ import { useThreadStore } from '../../store/threadStore';
 import { MessageBubble } from '../../components/MessageBubble';
 import { QuickActionButton } from '../../components/QuickActionButton';
 import { EmptyState } from '../../components/EmptyState';
+import { Avatar } from '../../components/Avatar';
 
 export function MyBotScreen() {
   const navigation = useNavigation<any>();
@@ -37,6 +38,10 @@ export function MyBotScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [contacts, setContacts] = useState<ContactInfo[]>([]);
+  const [mentions, setMentions] = useState<Array<{ display_name: string; phone: string; user_id: string }>>([]);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
 
   const flatListRef = useRef<FlatList>(null);
   const botMessages = botThreadId ? (messages[botThreadId] ?? []) : [];
@@ -84,6 +89,10 @@ export function MyBotScreen() {
     loadBotThread();
   }, [loadBotThread]);
 
+  useEffect(() => {
+    getContacts().then(setContacts).catch(() => {});
+  }, []);
+
   // WebSocket subscription
   useEffect(() => {
     const handler = (event: FeedEvent) => {
@@ -105,18 +114,67 @@ export function MyBotScreen() {
     return () => wsManager.unsubscribe(handler);
   }, [botThreadId, addMessage, updateMessageStatus]);
 
+  const handleTextChange = (text: string) => {
+    setInputText(text);
+    const lastAt = text.lastIndexOf('@');
+    if (lastAt !== -1) {
+      const afterAt = text.slice(lastAt + 1);
+      if (!afterAt.includes(' ')) {
+        setShowMentionPicker(true);
+        setMentionFilter(afterAt.toLowerCase());
+        return;
+      }
+    }
+    setShowMentionPicker(false);
+  };
+
+  const handleSelectMention = (contact: ContactInfo) => {
+    const name = contact.display_name || contact.phone_number;
+    const lastAt = inputText.lastIndexOf('@');
+    const newText = inputText.slice(0, lastAt) + `@${name} `;
+    setInputText(newText);
+    setMentions((prev) => [
+      ...prev,
+      { display_name: name, phone: contact.phone_number, user_id: contact.user_id },
+    ]);
+    setShowMentionPicker(false);
+  };
+
   const handleSend = async () => {
     const text = inputText.trim();
     if (!text || !currentUser) return;
 
     setSending(true);
     setInputText('');
+    setMentions([]);
+    setShowMentionPicker(false);
     try {
-      await sendMessage({
+      const result = await sendMessage({
         to: currentUser.phone_number,
-        intent: 'text_message',
-        payload: { text },
+        intent: 'owner_command',
+        payload: {
+          text,
+          ...(mentions.length > 0 && { mentions }),
+        },
       });
+
+      // Ensure thread ID is tracked (handles first-ever message case)
+      const threadId = result.thread_id;
+      if (!botThreadId) setBotThreadId(threadId);
+
+      // Add the sent message directly — WebSocket dedup will skip it if it arrives later
+      addMessage(threadId, {
+        id: result.message_id,
+        thread_id: threadId,
+        from_user_id: currentUser.id,
+        to_user_id: currentUser.id,
+        intent: 'owner_command',
+        payload: { text, ...(mentions.length > 0 && { mentions }) },
+        status: result.status,
+        human_override: false,
+        created_at: new Date().toISOString(),
+      });
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to send';
       Alert.alert('Send Failed', message);
@@ -208,13 +266,35 @@ export function MyBotScreen() {
         )}
 
         <SafeAreaView edges={['bottom']} style={styles.inputSafe}>
+          {showMentionPicker && (
+            <View style={styles.mentionPicker}>
+              <FlatList
+                data={contacts.filter((c) =>
+                  (c.display_name || c.phone_number).toLowerCase().includes(mentionFilter)
+                )}
+                keyExtractor={(c) => c.user_id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.mentionRow}
+                    onPress={() => handleSelectMention(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Avatar name={item.display_name || item.phone_number} size={32} />
+                    <Text style={styles.mentionName}>{item.display_name || item.phone_number}</Text>
+                  </TouchableOpacity>
+                )}
+                keyboardShouldPersistTaps="handled"
+                style={{ maxHeight: 180 }}
+              />
+            </View>
+          )}
           <View style={styles.inputRow}>
             <TextInput
               style={styles.textInput}
-              placeholder="Message your bot..."
+              placeholder="Message your bot... (type @ to mention a contact)"
               placeholderTextColor={Colors.textMuted}
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={handleTextChange}
               multiline
               maxLength={2000}
             />
@@ -291,6 +371,25 @@ const styles = StyleSheet.create({
   },
   inputSafe: {
     backgroundColor: Colors.bg,
+  },
+  mentionPicker: {
+    backgroundColor: Colors.bgCard,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  mentionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  mentionName: {
+    fontSize: 15,
+    color: Colors.text,
+    fontWeight: '500',
   },
   inputRow: {
     flexDirection: 'row',

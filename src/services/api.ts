@@ -181,8 +181,14 @@ export interface SendMessagePayload {
   payload: unknown;
 }
 
-export async function sendMessage(data: SendMessagePayload): Promise<void> {
-  return api<void>('/messages', {
+export interface SendMessageRes {
+  message_id: string;
+  thread_id: string;
+  status: string;
+}
+
+export async function sendMessage(data: SendMessagePayload): Promise<SendMessageRes> {
+  return api<SendMessageRes>('/messages', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -213,6 +219,24 @@ export async function setLLMPreference(
   return botApi<void>(`/config/${userId}/preferences/llm`, {
     method: 'PUT',
     body: JSON.stringify({ preferred_llm }),
+  });
+}
+
+export async function getLLMPreference(userId: string): Promise<{
+  preferred_llm: string;
+  api_keys_set: Record<string, boolean>;
+}> {
+  return botApi(`/config/${userId}/preferences/llm`);
+}
+
+export async function setLLMApiKey(
+  userId: string,
+  provider: string,
+  api_key: string
+): Promise<void> {
+  return botApi<void>(`/config/${userId}/preferences/llm/key`, {
+    method: 'PUT',
+    body: JSON.stringify({ provider, api_key }),
   });
 }
 

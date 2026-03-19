@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -15,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { Colors } from '../../constants/colors';
 import { BotConfig } from '../../types';
-import { getMyBot, setApiToken } from '../../services/api';
+import { getMyBot, setApiToken, getLLMPreference, setLLMPreference, setLLMApiKey } from '../../services/api';
 import { wsManager } from '../../services/ws';
 import { useAuthStore } from '../../store/authStore';
 import { Avatar } from '../../components/Avatar';
@@ -26,6 +27,11 @@ export function SettingsScreen() {
   const [botConfig, setBotConfig] = useState<BotConfig | null>(null);
   const [loadingBot, setLoadingBot] = useState(true);
   const [notifications, setNotifications] = useState(true);
+  const [preferredLlm, setPreferredLlm] = useState<string>('gemini');
+  const [apiKeysSet, setApiKeysSet] = useState<Record<string, boolean>>({});
+  const [savingLlm, setSavingLlm] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [savingKey, setSavingKey] = useState(false);
 
   const loadBot = useCallback(async () => {
     setLoadingBot(true);
@@ -39,9 +45,44 @@ export function SettingsScreen() {
     }
   }, []);
 
+  const loadLlmPref = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const pref = await getLLMPreference(user.id);
+      setPreferredLlm(pref.preferred_llm);
+      setApiKeysSet(pref.api_keys_set);
+    } catch { /* default stays gemini */ }
+  }, [user?.id]);
+
   useEffect(() => {
     loadBot();
-  }, [loadBot]);
+    loadLlmPref();
+  }, [loadBot, loadLlmPref]);
+
+  const handleLlmChange = async (llm: string) => {
+    if (!user?.id || savingLlm) return;
+    setSavingLlm(true);
+    try {
+      await setLLMPreference(user.id, llm);
+      setPreferredLlm(llm);
+      setApiKeyInput('');
+    } catch {
+      Alert.alert('Error', 'Failed to update AI model.');
+    } finally { setSavingLlm(false); }
+  };
+
+  const handleSaveApiKey = async () => {
+    if (!user?.id || !apiKeyInput.trim()) return;
+    setSavingKey(true);
+    try {
+      await setLLMApiKey(user.id, preferredLlm, apiKeyInput.trim());
+      setApiKeysSet(prev => ({ ...prev, [preferredLlm]: true }));
+      setApiKeyInput('');
+      Alert.alert('Saved', 'API key saved.');
+    } catch {
+      Alert.alert('Error', 'Failed to save API key.');
+    } finally { setSavingKey(false); }
+  };
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -102,6 +143,46 @@ export function SettingsScreen() {
                   </Text>
                 )}
               </View>
+            </View>
+
+            <View style={styles.rowDivider} />
+            <View style={styles.row}>
+              <Ionicons name="sparkles-outline" size={18} color={Colors.textMuted} style={styles.rowIcon} />
+              <Text style={styles.rowLabel}>AI Model</Text>
+              {savingLlm ? <ActivityIndicator size="small" color={Colors.textMuted} /> : (
+                <View style={styles.modelPicker}>
+                  {(['gemini', 'claude'] as const).map((llm) => (
+                    <TouchableOpacity key={llm}
+                      style={[styles.modelOption, preferredLlm === llm && styles.modelOptionActive]}
+                      onPress={() => handleLlmChange(llm)}>
+                      <Text style={[styles.modelOptionText, preferredLlm === llm && styles.modelOptionTextActive]}>
+                        {llm === 'gemini' ? 'Gemini' : 'Claude'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.rowDivider} />
+            <View style={styles.row}>
+              <Ionicons name="key-outline" size={18} color={Colors.textMuted} style={styles.rowIcon} />
+              <TextInput
+                style={styles.apiKeyInput}
+                placeholder={apiKeysSet[preferredLlm] ? '••••••••  (tap to update)' : 'Paste API key...'}
+                placeholderTextColor={Colors.textMuted}
+                value={apiKeyInput}
+                onChangeText={setApiKeyInput}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              {apiKeyInput.trim() ? (
+                <TouchableOpacity onPress={handleSaveApiKey} disabled={savingKey}>
+                  {savingKey
+                    ? <ActivityIndicator size="small" color={Colors.accent} />
+                    : <Text style={styles.saveKeyText}>Save</Text>}
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             {botConfig && !isManagedBot && (
@@ -289,6 +370,40 @@ const styles = StyleSheet.create({
   },
   dangerText: {
     color: Colors.red,
+  },
+  modelPicker: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modelOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: Colors.bgCard,
+  },
+  modelOptionActive: {
+    backgroundColor: Colors.accent,
+  },
+  modelOptionText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '500',
+  },
+  modelOptionTextActive: {
+    color: Colors.text,
+  },
+  apiKeyInput: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.text,
+    marginRight: 8,
+  },
+  saveKeyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.accent,
   },
   version: {
     fontSize: 12,
